@@ -28,7 +28,6 @@ library(scales)
 symbols <- c("SZ","AG", "BG", "HS","ZXB")
 
 #选择上证综合指数，上证综合A股指数，上证综合B股指数，沪深300，中小板指，2012年12月31日至2017年12月31日的日收盘价格，数据来源：国泰安数据库
-
 #数据保存至Excel文件，并提取数据，并新增一列日期，格式为年月日
 #将数据转换成时间序列格式数据
 prices <-
@@ -52,12 +51,11 @@ asset_returns_xts <-
   na.omit()
 head(asset_returns_xts, 3)
 
-#计算数据的收益率-第二种方法
+#计算数据的收益率-第二种方法,并移除指数因为指数转换成了行名
 asset_returns_dplyr_byhand <-
   prices %>%
   to.monthly(indexAt = "lastof", OHLC = FALSE) %>%
   data.frame(date = index(.)) %>%
-  # 移除指数因为指数转换成了行名
   remove_rownames() %>%
   gather(asset, prices, -date) %>%
   group_by(asset) %>%
@@ -138,14 +136,16 @@ hchart(hc_hist, color = "cornflowerblue") %>%
 
 #创建权重向量数据
 w <- c(0.25,0.25,0.20,0.20,0.10)
-tibble(w, symbols)#创建简单的数据集将权重和资产组合进行匹配，检查匹配情况
 
-portfolio_returns_xts_rebalanced_monthly <-#计算加权投资组合每月的收益率
-  Return.portfolio(asset_returns_xts,#提取资产组合收益率数据
-                   weights = w,#进行加权
-                   rebalance_on = "months") %>% #每个月对权重进行重新调节，使权重每月都固定
-  `colnames<-`("returns")#将列变量名称改为“returns”
+ #创建简单的数据集将权重和资产组合进行匹配，检查匹配情况
+tibble(w, symbols)
 
+#计算加权投资组合每月的收益率，提取资产组合收益率数据并进行加权，每个月对权重进行重新调节，使权重每月都固定，将列变量名称改为“returns”
+portfolio_returns_xts_rebalanced_monthly <-
+  Return.portfolio(asset_returns_xts,
+                   weights = w,
+                   rebalance_on = "months") %>% 
+  `colnames<-`("returns")
 head(portfolio_returns_xts_rebalanced_monthly, 3)
 
 #使用tidyverse计算资产组合月收益率
@@ -189,6 +189,7 @@ portfolio_returns_tq_rebalanced_monthly %>%
   theme_update(plot.title = element_text(hjust = 0.5)) +
   ggtitle("Portfolio Returns Scatter") +
   scale_x_date(breaks = pretty_breaks(n=6))
+
 #画出资产组合月收益直方图
 portfolio_returns_tq_rebalanced_monthly %>%
   ggplot(aes(x = returns)) +
@@ -221,6 +222,7 @@ asset_returns_long %>%
                  binwidth = .01) +
   ggtitle("Portfolio and Asset Monthly Returns") +
   theme_update(plot.title = element_text(hjust = 0.5))
+
 #画出资产组合收益率的密度分布图和直方图
 portfolio_returns_tq_rebalanced_monthly %>%
   ggplot(aes(x = returns)) +
@@ -248,9 +250,11 @@ kurt_tidy <-
          ((sum((returns - mean(returns))^2)/
              length(returns))^2)) - 3) %>%
   select(kurt_builtin, kurt_byhand)
+
 #新增一列
 kurt_tidy %>%
   mutate(xts = kurt_xts)
+
 #画出收益率的密度分布图
 portfolio_density_plot <- 
   portfolio_returns_tq_rebalanced_monthly %>% 
@@ -284,17 +288,13 @@ portfolio_density_plot +
 #将上述图形美化，增加更多图形元素，更加标准化
 #增加加入均值和中位数统计变量，将均值用红色虚线标示，将中位数用黑色虚线标示
 mean <- mean(portfolio_returns_tq_rebalanced_monthly$returns)
-
 mean_line_data <- 
   ggplot_build(portfolio_density_plot)$data[[1]] %>% 
   filter(x <= mean)
-
 median<- median(portfolio_returns_tq_rebalanced_monthly$returns)
-
 median_line_data <-
   ggplot_build(portfolio_density_plot)$data[[1]] %>%
   filter(x <= median)
-
 portfolio_density_plot +
   geom_area(data = sd_pos_shaded_area,
             aes(x = x, y = y),
@@ -311,8 +311,7 @@ portfolio_density_plot +
                    yend = density),
                color = "red",
                linetype = "dotted") +
-  
-  annotate(geom = "text",
+annotate(geom = "text",
            x = mean,
            y = 5,
            label = "mean",
@@ -321,14 +320,14 @@ portfolio_density_plot +
            angle = 90,
            alpha = .8,
            vjust = -1.75) +
-  geom_segment(data = median_line_data,
+geom_segment(data = median_line_data,
                aes(x = median,
                    y = 0,
                    xend = median,
                    yend = density),
                color = "black",
                linetype = "dotted") +
-  annotate(geom = "text",
+annotate(geom = "text",
            x = median,
            y = 5,
            label = "median",
@@ -384,6 +383,7 @@ rolling_kurt_tq <-
             col_rename = "tq") %>%
   select(-returns) %>%
   na.omit()
+
 #将滚动峰值可视化
 rolling_kurt_tq %>%
   mutate(xts = coredata(rolling_kurt_xts),
